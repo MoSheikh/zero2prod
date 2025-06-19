@@ -12,6 +12,16 @@ name = "zero2prod"
 
 [dependencies]
 actix-web = "4.11.0"
+chrono = "0.4.41"
+chrono-tz = "0.10.3"
+diesel = { version = "2.2.10", features = ["chrono", "postgres", "uuid"] }
+diesel_cli = { version = "2.2.10", features = ["postgres"], optional = true, default-features = false }
+dotenvy = "0.15.7"
 reqwest = "0.12.19"
 serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread"] }
+url = "2.5.4"
+uuid = "1.17.0"
+
+[features]
+dev = ["dep:diesel_cli"]

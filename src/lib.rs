@@ -6,17 +6,20 @@ use actix_web::{
     web::{self, Form},
     App, HttpResponse, HttpServer, Responder,
 };
-
 use serde::Deserialize;
+
+mod db;
+mod models;
+mod schema;
+
+async fn health_check() -> HttpResponse<&'static str> {
+    HttpResponse::with_body(StatusCode::OK, "OK")
+}
 
 #[derive(Deserialize)]
 struct SubscriptionsForm {
     name: String,
     email: String,
-}
-
-async fn health_check() -> HttpResponse<&'static str> {
-    HttpResponse::with_body(StatusCode::OK, "OK")
 }
 
 async fn subscriptions(form: Form<SubscriptionsForm>) -> impl Responder {
