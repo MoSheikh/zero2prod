@@ -53,9 +53,6 @@ docker exec -it "${CONTAINER_NAME}" psql -U "${SUPERUSER}" -c "${CREATE_QUERY}"
 GRANT_QUERY="ALTER DATABASE ${APP_DATABASE} OWNER TO ${APP_USER};";
 docker exec -it "${CONTAINER_NAME}" psql -U "${SUPERUSER}" -c "${GRANT_QUERY}"
 
-EXTENSION_QUERY='CREATE EXTENSION "uuid-ossp"';
-docker exec -it "${CONTAINER_NAME}" psql -U "${SUPERUSER}" -d ${APP_DATABASE} -c "${EXTENSION_QUERY}"
-
 echo "Postgres is now running and available on port $DB_PORT."
 
 DATABASE_URL=postgres://${APP_USER}:${APP_USER_PWD}@localhost:${DB_PORT}/${APP_DATABASE}
