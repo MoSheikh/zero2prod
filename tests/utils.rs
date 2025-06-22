@@ -4,7 +4,8 @@ use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};
 
 use tokio::task::JoinHandle;
 use zero2prod::{
-    config::{AppSettings, DbSettings, Settings},
+    config::DbSettings,
+    pool::{create_pool, Pool},
     run,
 };
 
@@ -18,7 +19,7 @@ pub struct TestServer {
     _db: ContainerAsync<postgres::Postgres>,
 }
 
-pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres>, String) {
+pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres>, Pool) {
     let container = postgres::Postgres::default()
         .with_db_name(test_name)
         .with_user("test")
@@ -30,20 +31,18 @@ pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres
 
     let port = container.get_host_port_ipv4(5432).await.unwrap();
     let url = format!("postgres://test:test@localhost:{port}/{test_name}");
-    let pool = zero2prod::pool::create_pool(&DbSettings {
-        url: url.clone(),
-        pool_size: 1,
-    });
+    let pool = create_pool(&DbSettings { url, pool_size: 16 });
     let conn = pool.get().await.unwrap();
-    match conn
+    let migration_result = conn
         .interact(|conn| match conn.run_pending_migrations(MIGRATIONS) {
             Ok(_) => Ok(()),
             Err(err) => Err(err),
         })
-        .await
-    {
+        .await;
+
+    match migration_result {
         Ok(res) => match res {
-            Ok(_) => (container, url),
+            Ok(_) => (container, pool),
             Err(e) => panic!("Could not apply migrations to database: {e}"),
         },
         Err(e) => panic!("Could not apply migrations to database: {e}"),
@@ -51,19 +50,11 @@ pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres
 }
 
 pub async fn init_test(test_name: &str) -> TestServer {
-    let (db_container, db_url) = init_test_db(test_name).await;
+    let (db_container, pool) = init_test_db(test_name).await;
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port.");
     let port = listener.local_addr().unwrap().port();
 
-    let settings = Settings {
-        database: DbSettings {
-            url: db_url,
-            pool_size: 1,
-        },
-        app: AppSettings { port },
-    };
-
-    let server = run(listener, &settings).expect("Failed to bind address.");
+    let server = run(listener, pool).expect("Failed to bind address.");
     let handle = tokio::spawn(server);
 
     TestServer {

@@ -50,15 +50,13 @@ async fn get_subscriptions(_form: Form<NewSubscription>, pool: Data<Pool>) -> Ht
     }
 }
 
-pub fn run(listener: TcpListener, settings: &config::Settings) -> Result<Server, std::io::Error> {
-    let pool = Data::new(pool::create_pool(&settings.database));
-
+pub fn run(listener: TcpListener, pool: Pool) -> Result<Server, std::io::Error> {
     let server = HttpServer::new(move || {
         App::new()
             .route("/healthz", web::get().to(health_check))
             .route("/subscriptions", web::post().to(get_subscriptions))
             .route("/subscribe", web::post().to(subscribe))
-            .app_data(pool.clone())
+            .app_data(Data::new(pool.clone()))
     })
     .listen(listener)?
     .run();
