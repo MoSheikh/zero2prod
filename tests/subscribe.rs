@@ -45,3 +45,19 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     assert_eq!(queried_subscription, created_subscription);
 }
+
+#[named]
+#[tokio::test]
+async fn subscribe_returns_a_400_for_missing_data() {
+    let test_server = utils::init_test(function_name!()).await;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(format!("{}/subscribe", test_server.app_address))
+        .form::<[(&str, &str); 0]>(&[])
+        .send()
+        .await
+        .expect("Subscribe request failed");
+
+    assert_eq!(response.status().as_u16(), 400);
+}
