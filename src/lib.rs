@@ -6,14 +6,13 @@ mod schema;
 use std::net::TcpListener;
 
 use actix_web::{
-    App, HttpResponse, HttpServer,
     dev::Server,
-    error::{Error, ErrorInternalServerError},
     http::StatusCode,
     web::{self, Data, Form},
+    App, HttpResponse, HttpServer,
 };
 
-use pool::Pool;
+use pool::{query_pool, Pool};
 
 use crate::schema::subscriptions;
 use diesel::prelude::*;
@@ -25,37 +24,29 @@ async fn health_check() -> HttpResponse<&'static str> {
 }
 
 async fn subscribe(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
-    let res = pool
-        .get()
-        .await
-        .expect("Could not acquire connection from pool")
-        .interact(|conn| {
-            diesel::insert_into(subscriptions::table)
-                .values(&form.into_inner())
-                .returning(Subscription::as_returning())
-                .get_result(conn)
-        })
-        .await
-        .unwrap()
-        .unwrap();
+    let res = query_pool(&pool, |conn| {
+        diesel::insert_into(subscriptions::table)
+            .values(&form.into_inner())
+            .returning(Subscription::as_returning())
+            .get_result(conn)
+    })
+    .await;
 
-    HttpResponse::Ok().json(res)
+    match res {
+        Ok(subscription) => HttpResponse::Ok().json(subscription),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+    }
 }
 
-async fn get_subscriptions(
-    _form: Form<NewSubscription>,
-    pool: Data<Pool>,
-) -> Result<HttpResponse, Error> {
-    if let Ok(Ok(response)) = pool
-        .get()
-        .await
-        .expect("Could not acquire connection from pool")
-        .interact(|conn| subscriptions.select(Subscription::as_select()).first(conn))
-        .await
-    {
-        Ok(HttpResponse::Ok().json(response))
-    } else {
-        Err(ErrorInternalServerError("Could not retrieve subscription"))
+async fn get_subscriptions(_form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
+    let res = query_pool(&pool, |conn| {
+        subscriptions.select(Subscription::as_select()).first(conn)
+    })
+    .await;
+
+    match res {
+        Ok(subscription) => HttpResponse::Ok().json(subscription),
+        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
     }
 }
 
