@@ -90,6 +90,6 @@ where
     T: Send + 'static,
 {
     let conn = pool.get().await?;
-    let res = conn.interact(|conn| f(conn)).await??;
+    let res = conn.interact(f).await??;
     Ok(res)
 }

@@ -1,6 +1,7 @@
 pub mod config;
 pub mod models;
 pub mod pool;
+pub mod request;
 mod schema;
 
 use std::net::TcpListener;
@@ -13,17 +14,32 @@ use actix_web::{
 };
 
 use pool::{query_pool, Pool};
+use request::RequestId;
 
 use crate::schema::subscriptions;
 use diesel::prelude::*;
 use models::{NewSubscription, Subscription};
 use schema::subscriptions::dsl::*;
 
-async fn health_check() -> HttpResponse<&'static str> {
+async fn health_check(request_id: RequestId) -> HttpResponse<&'static str> {
+    let _span = tracing::info_span!("Checking health", %request_id);
     HttpResponse::with_body(StatusCode::OK, "OK")
 }
 
-async fn subscribe(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
+async fn subscribe(
+    form: Form<NewSubscription>,
+    pool: Data<Pool>,
+    request_id: RequestId,
+) -> HttpResponse {
+    let span = tracing::info_span!(
+    "Adding a new subscriber",
+    %request_id,
+    subscriber_email = %form.email,
+    subscriber_name = %form.name
+    );
+    let _span_guard = span.enter();
+
+    tracing::info!("request {} - Saving new subscriber details...", request_id);
     let res = query_pool(&pool, |conn| {
         diesel::insert_into(subscriptions::table)
             .values(&form.into_inner())
@@ -33,20 +49,60 @@ async fn subscribe(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpRespons
     .await;
 
     match res {
-        Ok(subscription) => HttpResponse::Ok().json(subscription),
-        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+        Ok(subscription) => {
+            tracing::info!(
+                "request {} - New subscriber details have been saved",
+                request_id
+            );
+            HttpResponse::Ok().json(subscription)
+        }
+        Err(e) => {
+            tracing::error!("request {} - Failed to execute query: {:?}", request_id, e);
+            HttpResponse::InternalServerError().finish()
+        }
     }
 }
 
-async fn get_subscriptions(_form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
-    let res = query_pool(&pool, |conn| {
-        subscriptions.select(Subscription::as_select()).first(conn)
+async fn get_subscriptions(
+    form: Form<NewSubscription>,
+    pool: Data<Pool>,
+    request_id: RequestId,
+) -> HttpResponse {
+    let span = tracing::info_span!(
+    "Retrieving a subscription",
+    %request_id,
+    subscriber_email = %form.email,
+    subscriber_name = %form.name
+    );
+    let _span_guard = span.enter();
+
+    tracing::info!("request {} - Requesting subscriber details...", request_id);
+    let query = query_pool(&pool, move |conn| {
+        subscriptions
+            .select(Subscription::as_select())
+            .filter(subscriptions::email.eq(&form.email))
+            .filter(subscriptions::name.eq(&form.name))
+            .first(conn)
+            .optional()
     })
     .await;
 
-    match res {
-        Ok(subscription) => HttpResponse::Ok().json(subscription),
-        Err(err) => HttpResponse::InternalServerError().body(err.to_string()),
+    match query {
+        Ok(Some(subscription)) => {
+            tracing::info!("request {} - Found subscription", request_id);
+            HttpResponse::Ok().json(subscription)
+        }
+        Ok(None) => {
+            tracing::info!(
+                "request {} - Did not find the requested subscription",
+                request_id
+            );
+            HttpResponse::NotFound().finish()
+        }
+        Err(e) => {
+            tracing::error!("request {} - Failed to execute query: {:?}", request_id, e);
+            HttpResponse::InternalServerError().body(e.to_string())
+        }
     }
 }
 
@@ -67,10 +123,11 @@ pub fn run(listener: TcpListener, pool: Pool) -> Result<Server, std::io::Error> 
 #[cfg(test)]
 mod tests {
     use crate::health_check;
+    use crate::request::RequestId;
 
     #[tokio::test]
     async fn health_check_succeeds() {
-        let response = health_check().await;
+        let response = health_check(RequestId(uuid::Uuid::new_v4())).await;
         assert!(response.status().is_success())
     }
 }

@@ -6,6 +6,8 @@ use zero2prod::run;
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let settings = Settings::get();
     let listener = TcpListener::bind(format!("127.0.0.1:{}", settings.app.port))?;
     let pool = create_pool(&settings.database);
