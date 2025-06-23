@@ -14,7 +14,7 @@ pub struct Subscription {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Deserialize, Insertable)]
+#[derive(Debug, Deserialize, Insertable)]
 #[diesel(table_name = crate::schema::subscriptions)]
 pub struct NewSubscription {
     pub email: String,

@@ -15,30 +15,24 @@ use actix_web::{
 
 use pool::{query_pool, Pool};
 use request::RequestId;
+use tracing::instrument;
 
 use crate::schema::subscriptions;
 use diesel::prelude::*;
 use models::{NewSubscription, Subscription};
 use schema::subscriptions::dsl::*;
 
+#[instrument()]
 async fn health_check(request_id: RequestId) -> HttpResponse<&'static str> {
-    let _span = tracing::info_span!("Checking health", %request_id);
     HttpResponse::with_body(StatusCode::OK, "OK")
 }
 
+#[instrument(skip(pool))]
 async fn subscribe(
     form: Form<NewSubscription>,
     pool: Data<Pool>,
     request_id: RequestId,
 ) -> HttpResponse {
-    let span = tracing::info_span!(
-    "Adding a new subscriber",
-    %request_id,
-    subscriber_email = %form.email,
-    subscriber_name = %form.name
-    );
-    let _span_guard = span.enter();
-
     tracing::info!("request {} - Saving new subscriber details...", request_id);
     let res = query_pool(&pool, |conn| {
         diesel::insert_into(subscriptions::table)
@@ -63,19 +57,12 @@ async fn subscribe(
     }
 }
 
+#[instrument(skip(pool))]
 async fn get_subscriptions(
     form: Form<NewSubscription>,
     pool: Data<Pool>,
     request_id: RequestId,
 ) -> HttpResponse {
-    let span = tracing::info_span!(
-    "Retrieving a subscription",
-    %request_id,
-    subscriber_email = %form.email,
-    subscriber_name = %form.name
-    );
-    let _span_guard = span.enter();
-
     tracing::info!("request {} - Requesting subscriber details...", request_id);
     let query = query_pool(&pool, move |conn| {
         subscriptions

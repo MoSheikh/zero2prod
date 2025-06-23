@@ -23,6 +23,12 @@ impl std::fmt::Display for RequestId {
     }
 }
 
+impl std::fmt::Debug for RequestId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
 impl FromRequest for RequestId {
     type Error = actix_web::Error;
     type Future = Ready<Result<Self, Self::Error>>;
