@@ -4,7 +4,7 @@ use std::ops::Deref;
 use std::pin::Pin;
 
 use crate::config::DbSettings;
-use actix_web::{web::Data, FromRequest};
+use actix_web::{FromRequest, web::Data};
 use deadpool_diesel::postgres::Object;
 use deadpool_diesel::{Error, InteractError, Pool as DieselPool};
 use diesel::PgConnection;

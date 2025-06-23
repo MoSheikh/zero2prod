@@ -3,17 +3,18 @@ pub mod models;
 pub mod pool;
 pub mod request;
 mod schema;
+pub mod telemetry;
 
 use std::net::TcpListener;
 
 use actix_web::{
+    App, HttpResponse, HttpServer,
     dev::Server,
     http::StatusCode,
     web::{self, Data, Form},
-    App, HttpResponse, HttpServer,
 };
 
-use pool::{query_pool, Pool};
+use pool::{Pool, query_pool};
 use request::RequestId;
 use tracing::instrument;
 

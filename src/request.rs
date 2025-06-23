@@ -1,5 +1,5 @@
 use std::{
-    future::{ready, Ready},
+    future::{Ready, ready},
     ops::Deref,
 };
 

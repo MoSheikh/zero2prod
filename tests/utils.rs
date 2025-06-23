@@ -1,12 +1,13 @@
 use std::net::TcpListener;
+use std::sync::LazyLock;
 use testcontainers_modules::testcontainers::{ContainerAsync, ImageExt};
 use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};
 
 use tokio::task::JoinHandle;
 use zero2prod::{
     config::DbSettings,
-    pool::{create_pool, Pool},
-    run,
+    pool::{Pool, create_pool},
+    run, telemetry,
 };
 
 use diesel_migrations::*;
@@ -18,6 +19,11 @@ pub struct TestServer {
     _handle: JoinHandle<Result<(), std::io::Error>>,
     _db: ContainerAsync<postgres::Postgres>,
 }
+
+static TRACING: LazyLock<()> = LazyLock::new(|| match std::env::var("TEST_LOG").is_ok() {
+    true => telemetry::init("test", "debug", std::io::stdout),
+    false => telemetry::init("test", "debug", std::io::sink),
+});
 
 pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres>, Pool) {
     let container = postgres::Postgres::default()
@@ -50,6 +56,8 @@ pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres
 }
 
 pub async fn init_test(test_name: &str) -> TestServer {
+    LazyLock::force(&TRACING);
+
     let (db_container, pool) = init_test_db(test_name).await;
     let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to random port.");
     let port = listener.local_addr().unwrap().port();
