@@ -1,7 +1,6 @@
 pub mod config;
 pub mod models;
 pub mod pool;
-pub mod request;
 mod schema;
 pub mod telemetry;
 
@@ -14,26 +13,22 @@ use actix_web::{
     App, HttpResponse, HttpServer,
 };
 use diesel::prelude::*;
+use tracing_actix_web::TracingLogger;
 
 use models::{NewSubscription, Subscription};
 use pool::{query_pool, Pool};
-use request::RequestId;
 use schema::subscriptions;
 use schema::subscriptions::dsl::*;
 use tracing::instrument;
 
-#[instrument()]
-async fn health_check(request_id: RequestId) -> HttpResponse<&'static str> {
+#[instrument]
+async fn health_check() -> HttpResponse<&'static str> {
     HttpResponse::with_body(StatusCode::OK, "OK")
 }
 
 #[instrument(skip(pool))]
-async fn subscribe(
-    form: Form<NewSubscription>,
-    pool: Data<Pool>,
-    request_id: RequestId,
-) -> HttpResponse {
-    tracing::info!("request {} - Saving new subscriber details...", request_id);
+async fn subscribe(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
+    tracing::info!("Saving new subscriber details...");
     let res = query_pool(&pool, |conn| {
         diesel::insert_into(subscriptions::table)
             .values(&form.into_inner())
@@ -44,26 +39,19 @@ async fn subscribe(
 
     match res {
         Ok(subscription) => {
-            tracing::info!(
-                "request {} - New subscriber details have been saved",
-                request_id
-            );
+            tracing::info!("New subscriber details have been saved");
             HttpResponse::Ok().json(subscription)
         }
         Err(e) => {
-            tracing::error!("request {} - Failed to execute query: {:?}", request_id, e);
+            tracing::error!("Failed to execute query: {:?}", e);
             HttpResponse::InternalServerError().finish()
         }
     }
 }
 
 #[instrument(skip(pool))]
-async fn get_subscriptions(
-    form: Form<NewSubscription>,
-    pool: Data<Pool>,
-    request_id: RequestId,
-) -> HttpResponse {
-    tracing::info!("request {} - Requesting subscriber details...", request_id);
+async fn get_subscriptions(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
+    tracing::info!("Requesting subscriber details...");
     let query = query_pool(&pool, move |conn| {
         subscriptions
             .select(Subscription::as_select())
@@ -76,18 +64,15 @@ async fn get_subscriptions(
 
     match query {
         Ok(Some(subscription)) => {
-            tracing::info!("request {} - Found subscription", request_id);
+            tracing::info!("Found subscription");
             HttpResponse::Ok().json(subscription)
         }
         Ok(None) => {
-            tracing::info!(
-                "request {} - Did not find the requested subscription",
-                request_id
-            );
+            tracing::info!("Did not find the requested subscription");
             HttpResponse::NotFound().finish()
         }
         Err(e) => {
-            tracing::error!("request {} - Failed to execute query: {:?}", request_id, e);
+            tracing::error!("Failed to execute query: {:?}", e);
             HttpResponse::InternalServerError().body(e.to_string())
         }
     }
@@ -96,6 +81,7 @@ async fn get_subscriptions(
 pub fn run(listener: TcpListener, pool: Pool) -> Result<Server, std::io::Error> {
     let server = HttpServer::new(move || {
         App::new()
+            .wrap(TracingLogger::default())
             .route("/healthz", web::get().to(health_check))
             .route("/subscriptions", web::post().to(get_subscriptions))
             .route("/subscribe", web::post().to(subscribe))
@@ -110,11 +96,10 @@ pub fn run(listener: TcpListener, pool: Pool) -> Result<Server, std::io::Error> 
 #[cfg(test)]
 mod tests {
     use crate::health_check;
-    use crate::request::RequestId;
 
     #[tokio::test]
     async fn health_check_succeeds() {
-        let response = health_check(RequestId(uuid::Uuid::new_v4())).await;
+        let response = health_check().await;
         assert!(response.status().is_success())
     }
 }
