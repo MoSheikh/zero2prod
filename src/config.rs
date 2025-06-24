@@ -1,7 +1,7 @@
 use secrecy::*;
 use serde::Deserialize;
 
-const CONFIG_FILE: &str = "config.yaml";
+const CONF_DIR: &str = "conf";
 
 #[derive(Deserialize)]
 pub struct DbSettings {
@@ -28,6 +28,7 @@ impl DbSettings {
 
 #[derive(Deserialize)]
 pub struct AppSettings {
+    pub host: String,
     pub port: u16,
 }
 
@@ -38,8 +39,23 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn get() -> Settings {
-        get_settings_from_yaml(CONFIG_FILE)
+    pub fn get() -> Result<Settings, config::ConfigError> {
+        let base_dir = std::env::current_dir().expect("Failed to determine the current directory");
+        let conf_dir = base_dir.join(CONF_DIR);
+
+        let env: Environment = std::env::var("APP_ENV")
+            .unwrap_or_else(|_| {
+                tracing::info!("`APP_ENV` is not set - defaulting to \"local\"");
+                "local".into()
+            })
+            .try_into()
+            .expect("Failed to parse `APP_ENV`");
+        let env_filename = format!("{}.yaml", env.as_str());
+        config::Config::builder()
+            .add_source(config::File::from(conf_dir.join("base.yaml")))
+            .add_source(config::File::from(conf_dir.join(env_filename)))
+            .build()?
+            .try_deserialize::<Self>()
     }
 }
 
@@ -50,4 +66,34 @@ pub fn get_settings_from_yaml(file_name: &str) -> Settings {
         .unwrap_or_else(|e| panic!("Could not parse {file_name}: {e}"))
         .try_deserialize()
         .unwrap_or_else(|e| panic!("Could not deserialize parsed settings: {e}"))
+}
+
+pub enum Environment {
+    Local,
+    Production,
+}
+
+impl Environment {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Environment::Local => "local",
+            Environment::Production => "prod",
+        }
+    }
+}
+
+impl TryFrom<String> for Environment {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.to_lowercase().as_str() {
+            "local" => Ok(Self::Local),
+            "prod" => Ok(Self::Production),
+            other => Err(format!(
+                "{} is not a supported environment. \
+		 Use either `local` or `production`.",
+                other
+            )),
+        }
+    }
 }

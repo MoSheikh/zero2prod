@@ -9,8 +9,8 @@ use zero2prod::telemetry;
 async fn main() -> Result<(), std::io::Error> {
     telemetry::init("zero2prod", "info", std::io::stdout);
 
-    let settings = Settings::get();
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", settings.app.port))?;
+    let settings = Settings::get().expect("Failed to load settings");
+    let listener = TcpListener::bind(format!("{}:{}", &settings.app.host, &settings.app.port))?;
     let pool = create_pool(&settings.database);
 
     match run(listener, pool)?.await {
