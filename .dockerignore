@@ -20,5 +20,4 @@ target/
 
 /target
 
-conf/
-!conf/template.yaml
+conf/template.yaml

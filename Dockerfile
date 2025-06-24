@@ -1,15 +1,21 @@
-FROM rust:1.87.0
+ARG IMAGE=rust:1.87.0
+
+FROM $IMAGE as builder
 
 WORKDIR /app
 
-COPY Cargo.toml ./
-COPY src ./src
+COPY Cargo.toml .
+COPY src src
 
 RUN cargo build --release
-RUN mv ./target/release/zero2prod run
 
-COPY conf ./conf
+FROM $IMAGE as runtime
 
-ENV APP_ENV=prod
+WORKDIR /app
 
-ENTRYPOINT ["./run"]
+COPY --from=builder /app/target/release/zero2prod zero2prod
+COPY conf conf
+
+ENV APP_ENV prod
+
+ENTRYPOINT ["./zero2prod"]
