@@ -8,20 +8,19 @@ pub mod telemetry;
 use std::net::TcpListener;
 
 use actix_web::{
-    App, HttpResponse, HttpServer,
     dev::Server,
     http::StatusCode,
     web::{self, Data, Form},
+    App, HttpResponse, HttpServer,
 };
-
-use pool::{Pool, query_pool};
-use request::RequestId;
-use tracing::instrument;
-
-use crate::schema::subscriptions;
 use diesel::prelude::*;
+
 use models::{NewSubscription, Subscription};
+use pool::{query_pool, Pool};
+use request::RequestId;
+use schema::subscriptions;
 use schema::subscriptions::dsl::*;
+use tracing::instrument;
 
 #[instrument()]
 async fn health_check(request_id: RequestId) -> HttpResponse<&'static str> {

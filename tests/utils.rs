@@ -3,10 +3,11 @@ use std::sync::LazyLock;
 use testcontainers_modules::testcontainers::{ContainerAsync, ImageExt};
 use testcontainers_modules::{postgres, testcontainers::runners::AsyncRunner};
 
+use secrecy::SecretString;
 use tokio::task::JoinHandle;
 use zero2prod::{
     config::DbSettings,
-    pool::{Pool, create_pool},
+    pool::{create_pool, Pool},
     run, telemetry,
 };
 
@@ -58,7 +59,7 @@ pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres
     let pool = create_pool(&DbSettings {
         pool_size: 16,
         username: settings.username,
-        password: settings.password,
+        password: SecretString::from(settings.password),
         db_name: settings.db_name,
         host: settings.host,
         port: container.get_host_port_ipv4(5432).await.unwrap(),

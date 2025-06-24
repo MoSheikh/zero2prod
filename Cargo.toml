@@ -20,7 +20,7 @@ deadpool-diesel = { version = "0.6.1", features = ["postgres"] }
 diesel = { version = "2.2.10", features = ["chrono", "postgres", "uuid"] }
 diesel_cli = { version = "2.2.10", optional = true, features = ["postgres"], default-features = false }
 diesel_migrations = { version = "2.2.0", features = ["postgres"] }
-reqwest = { version = "0.12.19", features = ["json"] }
+secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1.45.1", features = ["macros", "rt-multi-thread"] }
 tracing = { version = "0.1.41", default-features = false, features = ["log"] }
@@ -32,6 +32,7 @@ uuid = { version = "1.17.0", features = ["serde", "v4"], default-features = fals
 
 [dev-dependencies]
 function_name = { version = "0.3.0" }
+reqwest = { version = "0.12.19", features = ["json"] }
 testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
 
 [features]

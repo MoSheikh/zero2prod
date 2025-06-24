@@ -3,17 +3,19 @@
 use std::ops::Deref;
 use std::pin::Pin;
 
-use crate::config::DbSettings;
-use actix_web::{FromRequest, web::Data};
+use actix_web::{web::Data, FromRequest};
 use deadpool_diesel::postgres::Object;
 use deadpool_diesel::{Error, InteractError, Pool as DieselPool};
 use diesel::PgConnection;
+use secrecy::ExposeSecret;
+
+use crate::config::DbSettings;
 
 pub type Pool = DieselPool<deadpool_diesel::postgres::Manager>;
 
 pub fn create_pool(settings: &DbSettings) -> Pool {
     DieselPool::builder(deadpool_diesel::postgres::Manager::new(
-        settings.to_url(),
+        settings.to_url().expose_secret(),
         deadpool::Runtime::Tokio1,
     ))
     .build()

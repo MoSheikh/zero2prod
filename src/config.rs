@@ -1,3 +1,4 @@
+use secrecy::*;
 use serde::Deserialize;
 
 const CONFIG_FILE: &str = "config.yaml";
@@ -5,7 +6,7 @@ const CONFIG_FILE: &str = "config.yaml";
 #[derive(Deserialize)]
 pub struct DbSettings {
     pub username: String,
-    pub password: String,
+    pub password: SecretString,
     pub db_name: String,
     pub host: String,
     pub port: u16,
@@ -13,11 +14,15 @@ pub struct DbSettings {
 }
 
 impl DbSettings {
-    pub fn to_url(&self) -> String {
-        format!(
+    pub fn to_url(&self) -> SecretString {
+        SecretString::from(format!(
             "postgres://{}:{}@{}:{}/{}",
-            self.username, self.password, self.host, self.port, self.db_name,
-        )
+            self.username,
+            self.password.expose_secret(),
+            self.host,
+            self.port,
+            self.db_name,
+        ))
     }
 }
 

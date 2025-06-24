@@ -1,10 +1,9 @@
 use std::{
-    future::{Ready, ready},
+    future::{ready, Ready},
     ops::Deref,
 };
 
 use actix_web::{FromRequest, HttpRequest};
-
 use uuid::Uuid;
 
 pub struct RequestId(pub Uuid);
