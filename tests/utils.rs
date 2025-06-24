@@ -20,24 +20,49 @@ pub struct TestServer {
     _db: ContainerAsync<postgres::Postgres>,
 }
 
+struct TestDbSettings {
+    username: String,
+    password: String,
+    db_name: String,
+    host: String,
+}
+
+impl TestDbSettings {
+    fn new(test_name: &str) -> Self {
+        Self {
+            username: String::from("test"),
+            password: String::from("test"),
+            db_name: String::from(test_name),
+            host: String::from("localhost"),
+        }
+    }
+}
+
 static TRACING: LazyLock<()> = LazyLock::new(|| match std::env::var("TEST_LOG").is_ok() {
     true => telemetry::init("test", "debug", std::io::stdout),
     false => telemetry::init("test", "debug", std::io::sink),
 });
 
 pub async fn init_test_db(test_name: &str) -> (ContainerAsync<postgres::Postgres>, Pool) {
+    let settings = TestDbSettings::new(test_name);
+
     let container = postgres::Postgres::default()
         .with_db_name(test_name)
-        .with_user("test")
-        .with_password("test")
+        .with_user(&settings.username)
+        .with_password(&settings.password)
         .with_container_name(format!("pg_{test_name}"))
         .start()
         .await
         .expect("Could not start postgres container");
 
-    let port = container.get_host_port_ipv4(5432).await.unwrap();
-    let url = format!("postgres://test:test@localhost:{port}/{test_name}");
-    let pool = create_pool(&DbSettings { url, pool_size: 16 });
+    let pool = create_pool(&DbSettings {
+        pool_size: 16,
+        username: settings.username,
+        password: settings.password,
+        db_name: settings.db_name,
+        host: settings.host,
+        port: container.get_host_port_ipv4(5432).await.unwrap(),
+    });
     let conn = pool.get().await.unwrap();
     let migration_result = conn
         .interact(|conn| match conn.run_pending_migrations(MIGRATIONS) {

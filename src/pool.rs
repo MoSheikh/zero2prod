@@ -11,9 +11,9 @@ use diesel::PgConnection;
 
 pub type Pool = DieselPool<deadpool_diesel::postgres::Manager>;
 
-pub fn create_pool(config: &DbSettings) -> Pool {
+pub fn create_pool(settings: &DbSettings) -> Pool {
     DieselPool::builder(deadpool_diesel::postgres::Manager::new(
-        config.url.clone(),
+        settings.to_url(),
         deadpool::Runtime::Tokio1,
     ))
     .build()

@@ -4,8 +4,21 @@ const CONFIG_FILE: &str = "config.yaml";
 
 #[derive(Deserialize)]
 pub struct DbSettings {
-    pub url: String,
+    pub username: String,
+    pub password: String,
+    pub db_name: String,
+    pub host: String,
+    pub port: u16,
     pub pool_size: u16,
+}
+
+impl DbSettings {
+    pub fn to_url(&self) -> String {
+        format!(
+            "postgres://{}:{}@{}:{}/{}",
+            self.username, self.password, self.host, self.port, self.db_name,
+        )
+    }
 }
 
 #[derive(Deserialize)]
