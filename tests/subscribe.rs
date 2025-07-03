@@ -61,3 +61,31 @@ async fn subscribe_returns_a_400_for_missing_data() {
 
     assert_eq!(response.status().as_u16(), 400);
 }
+
+#[named]
+#[tokio::test]
+async fn subscribe_returns_a_400_when_fields_are_present_but_empty() {
+    let test_server = utils::init_test(function_name!()).await;
+    let client = reqwest::Client::new();
+
+    for (body, descsription) in vec![
+        ("name=&email=jd@email.com", "empty name"),
+        ("name=John+Doe&email=", "empty email"),
+        ("name=John+Doe&email=not-an-actual-email", "invalid email"),
+    ] {
+        let response = client
+            .post(&format!("{}/subscribe", &test_server.app_address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request");
+
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "The API did not return a `400 BAD REQUEST` when the payload contained: {}.",
+            descsription
+        )
+    }
+}

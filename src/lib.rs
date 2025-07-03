@@ -1,17 +1,19 @@
 pub mod config;
+mod errors;
 pub mod models;
 pub mod pool;
 mod schema;
 pub mod telemetry;
 
-use std::net::TcpListener;
+use std::{net::TcpListener, sync::Arc};
 
 use actix_web::{
     dev::Server,
     http::StatusCode,
     web::{self, Data, Form},
-    App, HttpResponse, HttpServer,
+    App, HttpRequest, HttpResponse, HttpServer,
 };
+use actix_web_validation::{validator::ValidatorErrorHandlerExt, Validated};
 use diesel::prelude::*;
 use tracing_actix_web::TracingLogger;
 
@@ -27,11 +29,14 @@ async fn health_check() -> HttpResponse<&'static str> {
 }
 
 #[instrument(skip(pool))]
-async fn subscribe(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
+async fn subscribe(
+    Validated(Form(new_subscription)): Validated<Form<NewSubscription>>,
+    pool: Data<Pool>,
+) -> HttpResponse {
     tracing::info!("Saving new subscriber details...");
     let res = query_pool(&pool, |conn| {
         diesel::insert_into(subscriptions::table)
-            .values(&form.into_inner())
+            .values(new_subscription)
             .returning(Subscription::as_returning())
             .get_result(conn)
     })
@@ -50,7 +55,10 @@ async fn subscribe(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpRespons
 }
 
 #[instrument(skip(pool))]
-async fn get_subscriptions(form: Form<NewSubscription>, pool: Data<Pool>) -> HttpResponse {
+async fn get_subscriptions(
+    form: Validated<Form<NewSubscription>>,
+    pool: Data<Pool>,
+) -> HttpResponse {
     tracing::info!("Requesting subscriber details...");
     let query = query_pool(&pool, move |conn| {
         subscriptions
@@ -78,10 +86,25 @@ async fn get_subscriptions(form: Form<NewSubscription>, pool: Data<Pool>) -> Htt
     }
 }
 
+static VALIDATION_ERROR_MESSAGE: &str = "Encountered an error while parsing the request";
+
+fn error_handler(errors: validator::ValidationErrors, _req: &HttpRequest) -> actix_web::Error {
+    errors::ValidationErrorResponse {
+        message: VALIDATION_ERROR_MESSAGE,
+        errors: errors
+            .errors()
+            .iter()
+            .map(|(err, _)| err.to_string())
+            .collect(),
+    }
+    .into()
+}
+
 pub fn run(listener: TcpListener, pool: Pool) -> Result<Server, std::io::Error> {
     let server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
+            .validator_error_handler(Arc::new(error_handler))
             .route("/healthz", web::get().to(health_check))
             .route("/subscriptions", web::post().to(get_subscriptions))
             .route("/subscribe", web::post().to(subscribe))

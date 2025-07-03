@@ -12,6 +12,7 @@ name = "zero2prod"
 
 [dependencies]
 actix-web = "4.11.0"
+actix-web-validation = { version = "0.8.0", features = ["validator"] }
 chrono = { version = "0.4.41", features = ["serde"] }
 chrono-tz = "0.10.3"
 config = "0.15.11"
@@ -30,6 +31,7 @@ tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.19", features = ["registry", "env-filter"] }
 url = "2.5.4"
 uuid = { version = "1.17.0", features = ["serde", "v4"], default-features = false }
+validator = { version = "0.20.0", features = ["derive"] }
 
 [dev-dependencies]
 function_name = { version = "0.3.0" }
